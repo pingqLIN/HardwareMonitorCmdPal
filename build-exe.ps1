@@ -1,73 +1,96 @@
-# Build EXE installer for WinGet (official CmdPal publish flow)
+# Build signed MSIX + out-of-box EXE installer for the CmdPal extension.
+#
+# 流程：
+#   1. 确保自签名代码签名证书（cert/HardwareMonitor.pfx + .cer，与清单 Publisher CN=HardwareMonitor 一致）
+#   2. dotnet build 生成已签名 MSIX（AppPackages\<Name>_<Version>_<Platform>\）
+#   3. Inno Setup 编译安装器（/DPlatform=x64|arm64），安装器负责导入证书 + Add-AppxPackage
+#
+# 前置条件：.NET 10 SDK、Windows SDK 10.0.26100（signtool + UAP 平台）、Inno Setup 6
 param(
-    [string]$ExtensionName = "HardwareMonitorExtension",
     [string]$Configuration = "Release",
-    [string]$Version = "0.1.0.0",
-    [string[]]$Platforms = @("x64")
+    [string[]]$Platforms = @("x64"),
+    [switch]$SkipInstaller
 )
 
 $ErrorActionPreference = "Stop"
-
-if (-not $env:ProgramFiles) { $env:ProgramFiles = 'C:\Program Files' }
-if (-not $env:LOCALAPPDATA) { $env:LOCALAPPDATA = Join-Path $env:USERPROFILE 'AppData\Local' }
-if (-not $env:DOTNET_ROOT) { $env:DOTNET_ROOT = 'C:\Program Files\dotnet' }
 $env:Path = "C:\Program Files\dotnet;$env:Path"
 
-$ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectFile = Join-Path $ProjectDir "$ExtensionName\$ExtensionName.csproj"
+$RootDir    = $PSScriptRoot
+$ProjectDir = Join-Path $RootDir "HardwareMonitorExtension"
+$ProjectFile = Join-Path $ProjectDir "HardwareMonitorExtension.csproj"
+$CertDir    = Join-Path $RootDir "cert"
+$CertSubject = "CN=HardwareMonitor"   # 必须与 Package.appxmanifest 的 Publisher 完全一致
+$PfxPassword = "HardwareMonitor"
+
 $Inno = @(
-    'C:\Users\zhang\AppData\Local\Programs\Inno Setup 6\ISCC.exe',
     (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
     "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 
-Write-Host "Project: $ProjectFile"
-Write-Host "Inno: $Inno"
-Write-Host "Version: $Version Platforms: $($Platforms -join ',')"
+if (-not $SkipInstaller -and -not $Inno) { throw 'Inno Setup 6 not found' }
 
-foreach ($p in @("bin", "obj")) {
-    $path = Join-Path $ProjectDir $p
-    if (Test-Path $path) { Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue }
+# ---------- 1. 自签名证书（幂等：已存在则复用，保证跨版本升级不需要重新导入证书） ----------
+$pfx = Join-Path $CertDir "HardwareMonitor.pfx"
+$cer = Join-Path $CertDir "HardwareMonitor.cer"
+if (-not (Test-Path $pfx)) {
+    New-Item -ItemType Directory -Force $CertDir | Out-Null
+    $cert = Get-ChildItem Cert:\CurrentUser\My |
+        Where-Object { $_.Subject -eq $CertSubject } | Select-Object -First 1
+    if (-not $cert) {
+        $cert = New-SelfSignedCertificate -Type Custom `
+            -Subject $CertSubject `
+            -KeyAlgorithm RSA -KeyLength 2048 `
+            -KeyUsage DigitalSignature `
+            -FriendlyName "HardwareMonitor CmdPal signing" `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -TextExtension @(
+                "2.5.29.37={text}1.3.6.1.5.5.7.3.3,1.3.6.1.4.1.311.10.3.13",  # Code Signing + Lifetime Signing
+                "2.5.29.19={text}"                                             # End Entity
+            )
+    }
+    $pwd2 = ConvertTo-SecureString -String $PfxPassword -AsPlainText -Force
+    # 用 .NET 导出（Export-PfxDocument 在部分 PowerShell 版本不可用）
+    [System.IO.File]::WriteAllBytes($pfx, $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, $PfxPassword))
+    Export-Certificate   -Cert $cert -FilePath $cer -Type CERT             | Out-Null
+    Write-Host "Created signing cert $($cert.Thumbprint) -> $pfx"
+} else {
+    Write-Host "Reusing existing signing cert -> $pfx"
 }
 
-$setupTemplate = Get-Content (Join-Path $ProjectDir 'setup.iss') -Raw
+# ---------- 2. signtool（Windows SDK 优先，nuget BuildTools 兜底） ----------
+$signtool = @(
+    (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1).FullName,
+    (Get-ChildItem "$env:USERPROFILE\.nuget\packages\microsoft.windows.sdk.buildtools\*\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1).FullName
+) | Where-Object { $_ } | Select-Object -First 1
+if (-not $signtool) { throw 'signtool.exe not found (install Windows SDK 10.0.26100)' }
+Write-Host "signtool: $signtool"
 
 foreach ($Platform in $Platforms) {
-    $runtime = "win-$Platform"
-    $publishDir = Join-Path $ProjectDir "bin\$Configuration\$runtime\publish"
-    Write-Host "=== Publish $Platform ==="
-
-    & dotnet publish $ProjectFile `
+    Write-Host "=== MSIX $Platform ==="
+    & dotnet build $ProjectFile `
         --configuration $Configuration `
-        --runtime $runtime `
-        --self-contained true `
         -p:Platform=$Platform `
-        -p:WindowsPackageType=None `
-        -p:PublishSingleFile=true `
-        --output $publishDir
+        -p:UapAppxPackageBuildMode=SideloadOnly `
+        -p:GenerateAppxPackageOnBuild=true `
+        -p:AppxPackageSigningEnabled=true `
+        -p:PackageCertificateKeyFile=$pfx `
+        -p:PackageCertificatePassword=$PfxPassword
+    if ($LASTEXITCODE -ne 0) { throw "build failed for $Platform" }
 
-    if ($LASTEXITCODE -ne 0) { throw "publish failed for $Platform" }
+    $msix = Get-ChildItem (Join-Path $ProjectDir "AppPackages") -Recurse -Filter "*.msix" |
+        Where-Object { $_.Name -match "_$Platform\.msix$" -and $_.Name -notmatch 'blockmap' } |
+        Select-Object -First 1
+    if (-not $msix) { throw "msix not found for $Platform" }
+    Write-Host "MSIX: $($msix.FullName) ($([math]::Round($msix.Length/1MB,1)) MB)"
 
-    $fileCount = (Get-ChildItem $publishDir -Recurse -File -ErrorAction SilentlyContinue).Count
-    Write-Host "Published $fileCount files"
+    if ($SkipInstaller) { continue }
 
-    $script = $setupTemplate -replace '#define AppVersion ".*"', "#define AppVersion `"$Version`""
-    $script = $script -replace 'OutputBaseFilename=(.*?)\{#AppVersion\}', "OutputBaseFilename=`$1{#AppVersion}-$Platform"
-    $script = $script -replace 'Source: "bin\\Release\\win-x64\\publish', "Source: `"bin\Release\$runtime\publish"
-
-    if ($Platform -eq 'arm64') {
-        $script = $script -replace '(\[Setup\][^\[]*)(MinVersion=)', "`$1ArchitecturesAllowed=arm64`r`nArchitecturesInstallIn64BitMode=arm64`r`n`$2"
-    } else {
-        $script = $script -replace '(\[Setup\][^\[]*)(MinVersion=)', "`$1ArchitecturesAllowed=x64compatible`r`nArchitecturesInstallIn64BitMode=x64compatible`r`n`$2"
-    }
-
-    $iss = Join-Path $ProjectDir "setup-$Platform.iss"
-    Set-Content -Path $iss -Value $script -Encoding UTF8
-
-    if (-not $Inno) { throw 'Inno Setup not found' }
-    & $Inno $iss
-    if ($LASTEXITCODE -ne 0) { throw "Inno failed $LASTEXITCODE" }
-    Write-Host "Installer OK for $Platform"
+    Write-Host "=== Installer $Platform ==="
+    & $Inno "/DPlatform=$Platform" (Join-Path $RootDir "setup.iss")
+    if ($LASTEXITCODE -ne 0) { throw "Inno failed for $Platform" }
 }
 
-Get-ChildItem (Join-Path $ProjectDir "bin\$Configuration\installer") -ErrorAction SilentlyContinue | Select-Object Name, Length
+Get-ChildItem (Join-Path $RootDir "bin\Release\installer") -ErrorAction SilentlyContinue |
+    Select-Object Name, Length
