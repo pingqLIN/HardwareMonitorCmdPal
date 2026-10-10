@@ -19,6 +19,8 @@ $RootDir    = $PSScriptRoot
 $ProjectDir = Join-Path $RootDir "HardwareMonitorExtension"
 $ProjectFile = Join-Path $ProjectDir "HardwareMonitorExtension.csproj"
 $CertDir    = Join-Path $RootDir "cert"
+# 包输出放在仓库根 artifacts/ 下：留在项目树内会被递归打包进 msix（嵌套 msix 事故）
+$PackagesDir = Join-Path $RootDir "artifacts\AppPackages"
 $CertSubject = "CN=HardwareMonitor"   # 必须与 Package.appxmanifest 的 Publisher 完全一致
 $PfxPassword = "HardwareMonitor"
 
@@ -81,12 +83,13 @@ foreach ($Platform in $Platforms) {
         -p:Platform=$Platform `
         -p:UapAppxPackageBuildMode=SideloadOnly `
         -p:GenerateAppxPackageOnBuild=true `
+        -p:AppxPackageDir="$PackagesDir\" `
         -p:AppxPackageSigningEnabled=true `
         -p:PackageCertificateKeyFile=$pfx `
         -p:PackageCertificatePassword=$PfxPassword
     if ($LASTEXITCODE -ne 0) { throw "build failed for $Platform" }
 
-    $msix = Get-ChildItem (Join-Path $ProjectDir "AppPackages") -Recurse -Filter "*.msix" |
+    $msix = Get-ChildItem $PackagesDir -Recurse -Filter "*.msix" |
         Where-Object { $_.Name -eq "HardwareMonitorExtension_${version}_$Platform.msix" } |
         Select-Object -First 1
     if (-not $msix) { throw "msix not found for $Platform ($version)" }

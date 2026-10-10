@@ -7,3 +7,4 @@ AppPackages/
 setup-x64.iss
 setup-arm64.iss
 cert/
+artifacts/

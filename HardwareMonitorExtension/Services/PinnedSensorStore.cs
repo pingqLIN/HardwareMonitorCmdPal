@@ -5,17 +5,27 @@ namespace HardwareMonitorExtension.Services;
 /// <summary>用户固定到 Dock 的读数 Id 列表（JSON 文件持久化）。</summary>
 public sealed class PinnedSensorStore
 {
+    /// <summary>
+    /// 当前默认固定方案的版本号。提高它会让仍在使用旧方案的安装
+    /// 在下次启动时重新应用新默认（Dock 空间有限，默认方案需要随设计演进）。
+    /// </summary>
+    public const int CurrentDefaultVersion = 2;
+
     private readonly object _gate = new();
     private readonly string _path;
     private List<string> _ids;
+    private int _version;
 
     public event EventHandler? Changed;
 
     public PinnedSensorStore(string path)
     {
         _path = path;
-        _ids = Load(path);
+        (_ids, _version) = Load(path);
     }
+
+    /// <summary>存储的固定列表是否仍来自旧版默认方案。</summary>
+    public bool NeedsDefaultRefresh => _version < CurrentDefaultVersion;
 
     public IReadOnlyList<string> Ids
     {
@@ -75,15 +85,21 @@ public sealed class PinnedSensorStore
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>首次运行：每组取 1–2 条代表读数（温度/占用/功率等），而非只有 CPU/GPU。</summary>
+    /// <summary>
+    /// 默认固定方案 v2（精简版）：只保留 Dock 上最有价值的 4 项——
+    /// CPU 封装温度、CPU 占用、GPU 温度、GPU 占用。
+    /// 其余读数（存储/主板/内存温度、风扇、功率估算等）在列表页全量可查，不占 Dock。
+    /// </summary>
     public void EnsureDefaults(IEnumerable<SensorReading> sensors)
     {
         lock (_gate)
         {
-            if (_ids.Count > 0) return;
+            if (_ids.Count > 0 && !NeedsDefaultRefresh) return;
+
             var list = sensors.ToList();
             var picks = new List<string>();
-            void AddRange(IEnumerable<SensorReading> q, int n)
+
+            void AddPreferred(IEnumerable<SensorReading> q, int n)
             {
                 foreach (var s in q.Take(n))
                 {
@@ -92,34 +108,51 @@ public sealed class PinnedSensorStore
                 }
             }
 
-            foreach (var g in new[] { "处理器", "显卡", "存储", "主板", "内存" })
+            // CPU 封装温度优先；GPU 取首条温度
+            AddPreferred(list.Where(s => s.Group == "处理器" && s.Kind == SensorKind.Temperature)
+                .OrderByDescending(s => s.ShortLabel.Contains("封装", StringComparison.Ordinal)), 1);
+            AddPreferred(list.Where(s => s.Group == "处理器" && s.Kind == SensorKind.Load), 1);
+            AddPreferred(list.Where(s => s.Group == "显卡" && s.Kind == SensorKind.Temperature), 1);
+            AddPreferred(list.Where(s => s.Group == "显卡" && s.Kind == SensorKind.Load), 1);
+
+            // 机器缺 GPU/读数异常时兜底，保证 Dock 不空
+            if (picks.Count < 2)
             {
-                AddRange(list.Where(s => s.Group == g && s.Kind == SensorKind.Temperature), 1);
-                AddRange(list.Where(s => s.Group == g && s.Kind == SensorKind.Load), 1);
+                picks = list.Where(s => s.Kind == SensorKind.Temperature || s.Kind == SensorKind.Load)
+                            .Take(4).Select(s => s.Id).ToList();
             }
 
-            AddRange(list.Where(s => s.Kind == SensorKind.Power), 2);
-            if (picks.Count == 0)
-                picks = list.Take(6).Select(s => s.Id).ToList();
-
-            _ids = picks.Take(10).ToList();
+            _ids = picks;
+            _version = CurrentDefaultVersion;
             Save();
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private static List<string> Load(string path)
+    private (List<string> Ids, int Version) Load(string path)
     {
         try
         {
-            if (!File.Exists(path)) return [];
+            if (!File.Exists(path)) return ([], 0);
             var json = File.ReadAllText(path);
-            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? [];
+            // v2 格式：{"version":2,"ids":[...]}；v1 为纯数组
+            try
+            {
+                var obj = System.Text.Json.JsonSerializer.Deserialize<Stored>(json);
+                if (obj?.Ids is not null) return (obj.Ids, obj.Version);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                var ids = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? [];
+                return (ids, 0);
+            }
+
+            return ([], 0);
         }
         catch
         {
-            return [];
+            return ([], 0);
         }
     }
 
@@ -128,11 +161,14 @@ public sealed class PinnedSensorStore
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, System.Text.Json.JsonSerializer.Serialize(_ids));
+            File.WriteAllText(_path, System.Text.Json.JsonSerializer.Serialize(
+                new Stored(_version, _ids)));
         }
         catch
         {
             // ignore
         }
     }
+
+    private sealed record Stored(int Version, List<string> Ids);
 }

@@ -4,7 +4,7 @@
 #ifndef Platform
   #define Platform "x64"
 #endif
-#define AppVersion "0.1.6.0"
+#define AppVersion "0.1.7.0"
 #define ExtensionName "HardwareMonitorExtension"
 #define DisplayName "Hardware Monitor (PawnIO)"
 #define DeveloperName "zhang-astronaut"
@@ -35,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 ; 签名好的 MSIX（构建时由 build-exe.ps1 用自签名证书签出）
-Source: "HardwareMonitorExtension\AppPackages\{#MsixBase}_Test\{#MsixBase}.msix"; DestDir: "{app}"; DestName: "HardwareMonitorExtension.msix"; Flags: ignoreversion
+Source: "artifacts\AppPackages\{#MsixBase}_Test\{#MsixBase}.msix"; DestDir: "{app}"; DestName: "HardwareMonitorExtension.msix"; Flags: ignoreversion
 ; 签名证书（公钥），安装时导入 TrustedPeople
 Source: "cert\HardwareMonitor.cer"; DestDir: "{app}"; Flags: ignoreversion
 
