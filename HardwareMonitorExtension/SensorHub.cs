@@ -31,8 +31,6 @@ public sealed partial class SensorHub : IDisposable
     public HistoryStore History => _service.History;
     public PinnedSensorStore Pinned { get; private set; } = null!;
     public string BackendLabel => _service.BackendLabel;
-    public bool PawnIoConnected => _service.PawnIoConnected;
-    public string? PawnIoError => _service.PawnIoError;
 
     public bool MergeLoadInDock { get; set; } = true;
 

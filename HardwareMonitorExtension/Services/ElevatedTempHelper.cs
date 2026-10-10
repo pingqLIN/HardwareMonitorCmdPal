@@ -9,7 +9,8 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 namespace HardwareMonitorExtension.Services;
 
 /// <summary>
-/// CPU Tctl：优先命名管道（SYSTEM 助手，零写盘）；失败则读 ProgramData 文件。
+/// CPU Tctl 数据源：优先命名管道（SYSTEM 助手 TempHelperServer，零写盘）；
+/// 失败则读 ProgramData 兜底文件。计划任务的注册/重启也在这里。
 /// </summary>
 public static class ElevatedTempHelper
 {
@@ -17,28 +18,20 @@ public static class ElevatedTempHelper
     public const string PipeName = "HardwareMonitorTemp";
     private static DateTimeOffset _lastRestart = DateTimeOffset.MinValue;
 
-    private static string Dir
-    {
-        get
-        {
-            var dir = Utilities.BaseSettingsPath("HardwareMonitorExtension");
-            Directory.CreateDirectory(dir);
-            return dir;
-        }
-    }
-
-    public static void EnsureScript()
-    {
-        // 无独立脚本；任务直接指向 h.exe（命名管道服务）
-    }
-
     public static bool IsTaskInstalled()
     {
         try
         {
-            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\" + TaskName);
-            return key is not null;
+            using var proc = Process.Start(new ProcessStartInfo
+            {
+                FileName = "schtasks.exe",
+                Arguments = $"/query /tn {TaskName}",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+            });
+            proc?.WaitForExit(3000);
+            return proc?.ExitCode == 0;
         }
         catch { return false; }
     }
@@ -46,9 +39,11 @@ public static class ElevatedTempHelper
     public static bool EnsureAutoStart()
     {
         var script = Path.Combine(Path.GetTempPath(), "hwmon-install-temp-task.ps1");
-        var exe = Path.Combine(Dir, "h.exe").Replace("'", "''");
+        // 修复点：旧版指向设置目录下不存在的 h.exe（全库无该产物、无管道服务端）。
+        // 现改为复用包内主 exe 的 -TempHelper 模式（见 TempHelperServer）。
+        var exe = Path.Combine(AppContext.BaseDirectory, "HardwareMonitorExtension.exe").Replace("'", "''");
         File.WriteAllText(script, $"""
-            $action = New-ScheduledTaskAction -Execute '{exe}'
+            $action = New-ScheduledTaskAction -Execute '{exe}' -Argument '-TempHelper'
             $trigger = New-ScheduledTaskTrigger -AtStartup
             $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest
             $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
@@ -102,14 +97,29 @@ public static class ElevatedTempHelper
         {
             using var client = new NamedPipeClientStream(
                 ".", PipeName, PipeDirection.In, PipeOptions.Asynchronous);
-            client.Connect(50);
+            client.Connect(300);
             var buf = new byte[16];
-            var n = client.Read(buf, 0, 16);
+            var n = 0;
+            while (n < buf.Length)
+            {
+                var r = client.Read(buf, n, buf.Length - n);
+                if (r <= 0) break;
+                n += r;
+            }
+
             if (n >= 8)
             {
                 var temp = BitConverter.ToDouble(buf, 0);
-                if (double.IsFinite(temp) && temp > 1 && temp < 150)
-                    return temp;
+                if (!double.IsFinite(temp) || temp <= 1 || temp >= 150)
+                    return null;
+                // 带时间戳时校验新鲜度（服务端每轮采样后应答）
+                if (n >= 16)
+                {
+                    var ticks = BitConverter.ToInt64(buf, 8);
+                    if (ticks <= 0 || DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc) > TimeSpan.FromMinutes(5))
+                        return null;
+                }
+                return temp;
             }
         }
         catch

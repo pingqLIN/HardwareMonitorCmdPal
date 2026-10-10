@@ -7,23 +7,20 @@ using LibreHardwareMonitor.Hardware;
 namespace HardwareMonitorExtension.Services;
 
 /// <summary>
-/// 全量枚举 LibreHardwareMonitor 传感器（CPU/GPU/存储/主板等），并探测 PawnIO。
-/// 修复点：不再用脆弱的名称匹配丢读数；温度/占用/风扇等均输出。
+/// 全量枚举 LibreHardwareMonitor 传感器（CPU/GPU/存储/主板等）。
+/// 说明：PawnIO 在普通权限下设备 ACL 拒绝访问（实测 0x80070005），
+/// CPU 真实温度改由 SYSTEM 助手（TempHelperServer）提供，见 MergeElevatedCpuTemp。
 /// </summary>
 public sealed partial class SensorService : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _lhmReady;
     private Computer? _computer;
-    private PawnIoNative? _pawn;
-    private string? _pawnError;
     private string _backendLabel = "初始化中";
     private bool _disposed;
     private int _sampleFailures;
 
     public string BackendLabel => _backendLabel;
-    public bool PawnIoConnected => _pawn is not null;
-    public string? PawnIoError => _pawnError;
     public HistoryStore History { get; } = new(180);
 
     public async Task InitializeAsync(CancellationToken ct)
@@ -32,17 +29,6 @@ public sealed partial class SensorService : IDisposable
         try
         {
             if (_disposed) return;
-
-            if (PawnIoNative.TryOpen(out var pawn, out var err))
-            {
-                _pawn = pawn;
-                _pawnError = null;
-            }
-            else
-            {
-                _pawnError = err;
-            }
-
             _lhmReady = TryOpenLibreHardwareMonitor();
             _backendLabel = BuildBackendLabel(_lhmReady);
         }
@@ -214,16 +200,6 @@ public sealed partial class SensorService : IDisposable
         FixupCpuPower(list);
         // CPU 温度：LHM/PawnIO 普通权限为 0 时，合并登录任务助手写入的真实 Tctl
         MergeElevatedCpuTemp(list);
-        // 首次发现 CPU 温度无效时，提示可用一次安装命令（不自动弹 UAC）
-        try
-        {
-            if (list.Any(s => s.Kind == SensorKind.Temperature && s.Group == "处理器" && s.Value < 1)
-                && !ElevatedTempHelper.IsTaskInstalled())
-            {
-                // no-op marker for UI footer; actual UX is the top-level command
-            }
-        }
-        catch { }
 
         return Sort(list);
     }
@@ -231,12 +207,27 @@ public sealed partial class SensorService : IDisposable
     private static void MergeElevatedCpuTemp(List<SensorReading> list)
     {
         var elevated = ElevatedTempHelper.TryReadCpuTemperature();
-        if (elevated is null or < 1) return;
 
+        if (elevated is null or < 1 or > 150)
+        {
+            // 修复点：无助手数据时，普通权限下 CPU 温度常读出 0（AMD SMN 需内核驱动），
+            // 直接丢弃无效读数，避免界面显示误导性的 0°C。
+            list.RemoveAll(s =>
+                s.Kind == SensorKind.Temperature &&
+                s.Group == "处理器" &&
+                s.Value <= 0);
+            return;
+        }
+
+        // 替换优先级：封装/Tctl/Tdie > 第一个 CPU 温度项 > 新增
         var idx = list.FindIndex(s =>
-            s.Kind == SensorKind.Temperature &&
-            (s.Group == "处理器" || s.Name.Contains("Tctl", StringComparison.OrdinalIgnoreCase) ||
+            s.Kind == SensorKind.Temperature && s.Group == "处理器" &&
+            (s.Name.Contains("Package", StringComparison.OrdinalIgnoreCase) ||
+             s.Name.Contains("Tctl", StringComparison.OrdinalIgnoreCase) ||
              s.Name.Contains("Tdie", StringComparison.OrdinalIgnoreCase)));
+        if (idx < 0)
+            idx = list.FindIndex(s =>
+                s.Kind == SensorKind.Temperature && s.Group == "处理器");
 
         if (idx >= 0)
         {
@@ -547,7 +538,6 @@ public sealed partial class SensorService : IDisposable
             // ignore
         }
 
-        _pawn?.Dispose();
         _gate.Dispose();
     }
 }

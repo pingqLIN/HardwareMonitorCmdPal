@@ -5,6 +5,7 @@ using Microsoft.CommandPalette.Extensions;
 using Shmuelie.WinRTServer;
 using Shmuelie.WinRTServer.CsWinRT;
 using System.Runtime.InteropServices;
+using HardwareMonitorExtension.Services;
 
 namespace HardwareMonitorExtension;
 
@@ -13,6 +14,13 @@ public class Program
     [MTAThread]
     public static void Main(string[] args)
     {
+        // SYSTEM 计划任务以 -TempHelper 启动：常驻采样 CPU 温度并服务命名管道
+        if (args.Length > 0 && args[0] == "-TempHelper")
+        {
+            TempHelperServer.Run();
+            return;
+        }
+
         if (args.Length == 0 || args[0] != "-RegisterProcessAsComServer")
         {
             Console.WriteLine("Not being launched as a Extension... exiting.");

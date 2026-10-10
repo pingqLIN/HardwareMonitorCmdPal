@@ -219,12 +219,11 @@ internal sealed partial class SensorsListPage : ListPage
     {
         var peak = snap.PeakTemperatureC;
         var level = ThresholdPolicy.Classify(peak);
-        var pawn = _hub.PawnIoConnected ? "PawnIO 已连接" : "PawnIO 未连接";
         var pinCount = _hub.Pinned?.Ids.Count ?? 0;
         var tempCount = snap.Sensors.Count(s => s.Kind == SensorKind.Temperature);
 
         _footerItem.Title = $"{snap.Sensors.Count} 项 · 温度 {tempCount} · 已固定 {pinCount} · 峰值 {Math.Round(peak)}°C{ThresholdPolicy.Marker(level)}";
-        _footerItem.Subtitle = $"{_hub.BackendLabel} · {pawn} · {snap.Timestamp:HH:mm:ss}";
+        _footerItem.Subtitle = $"{_hub.BackendLabel} · {snap.Timestamp:HH:mm:ss}";
         _footerItem.Icon = new IconInfo("↻");
     }
 

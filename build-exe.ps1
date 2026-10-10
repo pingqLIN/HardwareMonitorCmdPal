@@ -68,9 +68,16 @@ if (-not $signtool) { throw 'signtool.exe not found (install Windows SDK 10.0.26
 Write-Host "signtool: $signtool"
 
 foreach ($Platform in $Platforms) {
-    Write-Host "=== MSIX $Platform ==="
+    $runtime = "win-$Platform"
+
+    # 从 csproj 读取 AppxPackageVersion，精确匹配产物，避免陈旧包目录干扰
+    $version = ((Select-String -Path $ProjectFile -Pattern '<AppxPackageVersion>(.*?)</AppxPackageVersion>').Matches[0].Groups[1].Value)
+    Write-Host "=== MSIX $Platform ($version) ==="
+
     & dotnet build $ProjectFile `
         --configuration $Configuration `
+        --runtime $runtime `
+        --self-contained true `
         -p:Platform=$Platform `
         -p:UapAppxPackageBuildMode=SideloadOnly `
         -p:GenerateAppxPackageOnBuild=true `
@@ -80,9 +87,9 @@ foreach ($Platform in $Platforms) {
     if ($LASTEXITCODE -ne 0) { throw "build failed for $Platform" }
 
     $msix = Get-ChildItem (Join-Path $ProjectDir "AppPackages") -Recurse -Filter "*.msix" |
-        Where-Object { $_.Name -match "_$Platform\.msix$" -and $_.Name -notmatch 'blockmap' } |
+        Where-Object { $_.Name -eq "HardwareMonitorExtension_${version}_$Platform.msix" } |
         Select-Object -First 1
-    if (-not $msix) { throw "msix not found for $Platform" }
+    if (-not $msix) { throw "msix not found for $Platform ($version)" }
     Write-Host "MSIX: $($msix.FullName) ($([math]::Round($msix.Length/1MB,1)) MB)"
 
     if ($SkipInstaller) { continue }
