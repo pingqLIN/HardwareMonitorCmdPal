@@ -15,6 +15,7 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
     private readonly Lock _gate = new();
     private readonly Dictionary<string, (ListItem Item, SetDockPinCommand Toggle)> _items = new(StringComparer.OrdinalIgnoreCase);
     private readonly ListItem _empty;
+    private readonly ClearDockPinsCommand _clearPins;
     private string[] _sensorIds = [];
     private bool _disposed;
 
@@ -31,7 +32,7 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
             Title = Text.Get("DockSettingsEmpty"),
             Subtitle = Text.Get("DockSettingsEmptyDescription"),
         };
-        Commands = [new CommandContextItem(new ClearDockPinsCommand(_hub))];
+        _clearPins = new ClearDockPinsCommand(_hub);
         _hub.SnapshotUpdated += OnSnapshotUpdated;
         _hub.Pinned.Changed += OnPinsChanged;
     }
@@ -54,7 +55,10 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
                 if (!_items.TryGetValue(id, out var entry))
                 {
                     var toggle = new SetDockPinCommand(_hub, id);
-                    var item = new ListItem(toggle);
+                    var item = new ListItem(toggle)
+                    {
+                        MoreCommands = [new CommandContextItem(_clearPins)],
+                    };
                     entry = (item, toggle);
                     _items.Add(id, entry);
                 }

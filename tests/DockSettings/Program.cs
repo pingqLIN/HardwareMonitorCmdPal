@@ -35,7 +35,7 @@ void Publish(params SensorReading[] sensors)
     updated?.Invoke(hub, EventArgs.Empty);
 }
 
-void Invoke(IListItem item) => ((IInvokableCommand)item.Command!).Invoke();
+void Invoke(IListItem item) => ((IInvokableCommand)item.Command!).Invoke(page);
 
 Check(page.Id == "hardwaremonitor.dock_settings", "configuration page has a stable ID");
 Check(band.Items.Length == 1 && ReferenceEquals(band.Items[0], configureItem), "configuration remains available with no pins");
@@ -63,7 +63,8 @@ Invoke(offline);
 Check(!hub.Pinned.IsPinned(cpu.Id) && page.GetItems().Length == 1, "click removes the unavailable pin");
 Invoke(page.GetItems()[0]);
 Check(hub.Pinned.IsPinned(gpu.Id), "another sensor can be pinned");
-((IInvokableCommand)page.Commands[0].Command!).Invoke();
+var clearItem = (ICommandItem)page.GetItems()[0].MoreCommands[0];
+((IInvokableCommand)clearItem.Command!).Invoke(page);
 Check(hub.Pinned.Ids.Count == 0 && band.Items.Length == 1, "hide all retains the configuration button");
 var reloaded = new PinnedSensorStore(path);
 reloaded.EnsureDefaults([cpu, gpu]);
