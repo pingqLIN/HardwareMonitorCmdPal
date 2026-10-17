@@ -88,15 +88,30 @@ public sealed record SensorReading(
     {
         var prefix = Group switch
         {
-            "处理器" => "C",
-            "显卡" => "G",
-            "存储" => "S",
-            "主板" => "M",
-            "内存" => "R",
-            "电池" => "B",
+            "处理器" => "CPU",
+            "显卡" => "GPU",
+            "存储" => "SSD",
+            "主板" => "MB",
+            "内存" => "RAM",
+            "电池" => "BAT",
             _ => "#",
         };
-        return $"{prefix} {FormatDockTitle(mergeLoad)}";
+        var key = Kind switch
+        {
+            SensorKind.Temperature when ShortLabel.Contains("热点", StringComparison.Ordinal) ||
+                ShortLabel.Contains("Hot Spot", StringComparison.OrdinalIgnoreCase) => "HS",
+            SensorKind.Temperature when ShortLabel.Contains("封装", StringComparison.Ordinal) ||
+                ShortLabel.Contains("Package", StringComparison.OrdinalIgnoreCase) => "PKG",
+            SensorKind.Temperature when ShortLabel.Contains("核心", StringComparison.Ordinal) ||
+                ShortLabel.Contains("Core", StringComparison.OrdinalIgnoreCase) => "CORE",
+            SensorKind.Temperature => "T",
+            SensorKind.Load => "%",
+            SensorKind.Power => "W",
+            SensorKind.Fan => "FAN",
+            SensorKind.Clock => "MHz",
+            _ => "",
+        };
+        return $"{prefix} {key} {FormatDockTitle(mergeLoad)}".Replace("  ", " ");
     }
 
     public string FormatTitle(bool mergeLoad) => FormatDockTitle(mergeLoad);

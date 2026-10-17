@@ -16,6 +16,7 @@ internal sealed partial class SensorsListPage : ListPage
 {
     private readonly SensorHub _hub;
     private readonly HardwareMonitorSettingsManager _settings;
+    private readonly DockItemAppearanceStore _appearances;
     private readonly Dictionary<string, ListItem> _itemsBySensor = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _lastTitle = new(StringComparer.OrdinalIgnoreCase);
     private readonly ListItem _footerItem = new(new NoOpCommand());
@@ -24,10 +25,11 @@ internal sealed partial class SensorsListPage : ListPage
     private bool _hooked;
     private bool _structureDirty = true;
 
-    internal SensorsListPage(SensorHub hub, HardwareMonitorSettingsManager settings)
+    internal SensorsListPage(SensorHub hub, HardwareMonitorSettingsManager settings, DockItemAppearanceStore appearances)
     {
         _hub = hub;
         _settings = settings;
+        _appearances = appearances;
         _compact = settings.CompactByDefault;
         Icon = new IconInfo("🌡");
         Title = Text.Get("AppName");
@@ -212,6 +214,11 @@ internal sealed partial class SensorsListPage : ListPage
             {
                 Title = Text.Get("ViewTrend"),
                 Icon = new IconInfo("📈"),
+            },
+            new CommandContextItem(new DockAppearancePage(_appearances, sensorId))
+            {
+                Title = Text.Get("DockAppearanceEdit"),
+                Icon = new IconInfo("🎨"),
             },
         ];
     }

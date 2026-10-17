@@ -3,6 +3,7 @@
 using HardwareMonitorExtension.Dock;
 using HardwareMonitorExtension.Localization;
 using HardwareMonitorExtension.Pages;
+using HardwareMonitorExtension.Services;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
@@ -17,6 +18,7 @@ public partial class HardwareMonitorCommandsProvider : CommandProvider
     private readonly HardwareMonitorSettingsManager _settingsManager;
     private readonly PinnedSensorsDockBand _dockBand;
     private readonly DockSettingsPage _dockSettingsPage;
+    private readonly DockItemAppearanceStore _dockAppearances;
     private readonly ICommandItem[] _commands;
     private readonly ICommandItem[] _bands;
 
@@ -26,16 +28,17 @@ public partial class HardwareMonitorCommandsProvider : CommandProvider
         Icon = IconHelpers.FromRelativePath("Assets\\StoreLogo.png");
         _settingsManager = new HardwareMonitorSettingsManager(_hub);
         _hub.ConfigurePins(HardwareMonitorSettingsManager.PinsJsonPath());
-        _dockSettingsPage = new DockSettingsPage(_hub);
+        _dockAppearances = new DockItemAppearanceStore(HardwareMonitorSettingsManager.DockAppearanceJsonPath());
+        _dockSettingsPage = new DockSettingsPage(_hub, _dockAppearances);
         var configureDockItem = new ListItem(_dockSettingsPage)
         {
             Title = Text.Get("DockSettingsTitle"),
             Subtitle = Text.Get("DockSettingsDescription"),
             Icon = new IconInfo("⚙"),
         };
-        _dockBand = new PinnedSensorsDockBand(_hub, configureDockItem);
+        _dockBand = new PinnedSensorsDockBand(_hub, configureDockItem, _dockAppearances);
 
-        var listPage = new SensorsListPage(_hub, _settingsManager);
+        var listPage = new SensorsListPage(_hub, _settingsManager, _dockAppearances);
         _commands =
         [
             new CommandItem(_dockSettingsPage)

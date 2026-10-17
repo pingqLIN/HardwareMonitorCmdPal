@@ -473,4 +473,43 @@
   <data xml:space="preserve" name="KindOther">
     <value>その他</value>
   </data>
+  <data name="DockAppearanceEdit" xml:space="preserve">
+    <value>Dock 項目の外観を編集</value>
+  </data>
+  <data name="DockAppearanceDescription" xml:space="preserve">
+    <value>このセンサーのアイコン、タイトル、サブタイトルを個別に設定します。</value>
+  </data>
+  <data name="DockAppearanceAuto" xml:space="preserve">
+    <value>自動（センサー状態）</value>
+  </data>
+  <data name="DockAppearancePresetIcon" xml:space="preserve">
+    <value>プリセットアイコン／絵文字</value>
+  </data>
+  <data name="DockAppearanceCustomIcon" xml:space="preserve">
+    <value>カスタムアイコン／絵文字（任意）</value>
+  </data>
+  <data name="DockAppearanceCustomIconHint" xml:space="preserve">
+    <value>絵文字を貼り付けるとプリセットより優先します</value>
+  </data>
+  <data name="DockAppearanceTitle" xml:space="preserve">
+    <value>タイトルラベル（任意）</value>
+  </data>
+  <data name="DockAppearanceTitleHint" xml:space="preserve">
+    <value>例：CPU パッケージ</value>
+  </data>
+  <data name="DockAppearanceSubtitle" xml:space="preserve">
+    <value>サブタイトル（任意）</value>
+  </data>
+  <data name="DockAppearanceSubtitleHint" xml:space="preserve">
+    <value>例：プロセッサー温度</value>
+  </data>
+  <data name="DockAppearanceCompactHint" xml:space="preserve">
+    <value>Dock のコンパクト表示ではサブタイトルが非表示になります。タイトルラベルは現在値の前に表示されます。空欄にすると自動表示になります。</value>
+  </data>
+  <data name="DockAppearanceSave" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="DockAppearanceReset" xml:space="preserve">
+    <value>初期設定に戻す</value>
+  </data>
 </root>

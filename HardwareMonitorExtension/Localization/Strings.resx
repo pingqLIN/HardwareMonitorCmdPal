@@ -473,4 +473,43 @@
   <data xml:space="preserve" name="KindOther">
     <value>Other</value>
   </data>
+  <data name="DockAppearanceEdit" xml:space="preserve">
+    <value>Edit Dock appearance</value>
+  </data>
+  <data name="DockAppearanceDescription" xml:space="preserve">
+    <value>Choose an icon or emoji and label for this individual reading.</value>
+  </data>
+  <data name="DockAppearanceAuto" xml:space="preserve">
+    <value>Automatic (sensor state)</value>
+  </data>
+  <data name="DockAppearancePresetIcon" xml:space="preserve">
+    <value>Preset icon / emoji</value>
+  </data>
+  <data name="DockAppearanceCustomIcon" xml:space="preserve">
+    <value>Custom icon / emoji (optional)</value>
+  </data>
+  <data name="DockAppearanceCustomIconHint" xml:space="preserve">
+    <value>Paste an emoji; overrides the preset</value>
+  </data>
+  <data name="DockAppearanceTitle" xml:space="preserve">
+    <value>Title label (optional)</value>
+  </data>
+  <data name="DockAppearanceTitleHint" xml:space="preserve">
+    <value>Example: CPU package</value>
+  </data>
+  <data name="DockAppearanceSubtitle" xml:space="preserve">
+    <value>Subtitle (optional)</value>
+  </data>
+  <data name="DockAppearanceSubtitleHint" xml:space="preserve">
+    <value>Example: Main processor sensor</value>
+  </data>
+  <data name="DockAppearanceCompactHint" xml:space="preserve">
+    <value>Compact Dock hides the subtitle. The title label appears before the live reading; leave fields empty to use automatic values.</value>
+  </data>
+  <data name="DockAppearanceSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="DockAppearanceReset" xml:space="preserve">
+    <value>Restore defaults</value>
+  </data>
 </root>

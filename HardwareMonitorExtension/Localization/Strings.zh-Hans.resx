@@ -473,4 +473,43 @@
   <data xml:space="preserve" name="KindOther">
     <value>其他</value>
   </data>
+  <data name="DockAppearanceEdit" xml:space="preserve">
+    <value>编辑 Dock 项目外观</value>
+  </data>
+  <data name="DockAppearanceDescription" xml:space="preserve">
+    <value>为此读数单独设置图标、标题与副标题。</value>
+  </data>
+  <data name="DockAppearanceAuto" xml:space="preserve">
+    <value>自动（依据传感器状态）</value>
+  </data>
+  <data name="DockAppearancePresetIcon" xml:space="preserve">
+    <value>预设图标／Emoji</value>
+  </data>
+  <data name="DockAppearanceCustomIcon" xml:space="preserve">
+    <value>自定义图标／Emoji（可选）</value>
+  </data>
+  <data name="DockAppearanceCustomIconHint" xml:space="preserve">
+    <value>粘贴 Emoji；输入后覆盖预设图标</value>
+  </data>
+  <data name="DockAppearanceTitle" xml:space="preserve">
+    <value>标题名称（可选）</value>
+  </data>
+  <data name="DockAppearanceTitleHint" xml:space="preserve">
+    <value>例如：CPU 封装</value>
+  </data>
+  <data name="DockAppearanceSubtitle" xml:space="preserve">
+    <value>副标题（可选）</value>
+  </data>
+  <data name="DockAppearanceSubtitleHint" xml:space="preserve">
+    <value>例如：处理器温度</value>
+  </data>
+  <data name="DockAppearanceCompactHint" xml:space="preserve">
+    <value>Dock 精简模式不显示副标题。标题名称显示在实时数值之前；留空使用自动值。</value>
+  </data>
+  <data name="DockAppearanceSave" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="DockAppearanceReset" xml:space="preserve">
+    <value>恢复默认</value>
+  </data>
 </root>

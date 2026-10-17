@@ -473,4 +473,43 @@
   <data xml:space="preserve" name="KindOther">
     <value>其他</value>
   </data>
+  <data name="DockAppearanceEdit" xml:space="preserve">
+    <value>編輯 Dock 項目外觀</value>
+  </data>
+  <data name="DockAppearanceDescription" xml:space="preserve">
+    <value>針對這個讀值單獨設定圖示、標題與副標題。</value>
+  </data>
+  <data name="DockAppearanceAuto" xml:space="preserve">
+    <value>自動（依感測器狀態）</value>
+  </data>
+  <data name="DockAppearancePresetIcon" xml:space="preserve">
+    <value>預設圖示／Emoji</value>
+  </data>
+  <data name="DockAppearanceCustomIcon" xml:space="preserve">
+    <value>自訂圖示／Emoji（選填）</value>
+  </data>
+  <data name="DockAppearanceCustomIconHint" xml:space="preserve">
+    <value>貼上 Emoji；有輸入時優先於預設圖示</value>
+  </data>
+  <data name="DockAppearanceTitle" xml:space="preserve">
+    <value>標題名稱（選填）</value>
+  </data>
+  <data name="DockAppearanceTitleHint" xml:space="preserve">
+    <value>例如：CPU 封裝</value>
+  </data>
+  <data name="DockAppearanceSubtitle" xml:space="preserve">
+    <value>副標題（選填）</value>
+  </data>
+  <data name="DockAppearanceSubtitleHint" xml:space="preserve">
+    <value>例如：主處理器溫度</value>
+  </data>
+  <data name="DockAppearanceCompactHint" xml:space="preserve">
+    <value>Dock 精簡模式不顯示副標題。標題名稱會顯示在即時數值前方；留空則使用自動值。</value>
+  </data>
+  <data name="DockAppearanceSave" xml:space="preserve">
+    <value>儲存</value>
+  </data>
+  <data name="DockAppearanceReset" xml:space="preserve">
+    <value>還原預設</value>
+  </data>
 </root>

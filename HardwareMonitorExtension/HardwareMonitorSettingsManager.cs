@@ -67,6 +67,13 @@ internal sealed partial class HardwareMonitorSettingsManager : JsonSettingsManag
         return Path.Combine(directory, "pinned-sensors.json");
     }
 
+    internal static string DockAppearanceJsonPath()
+    {
+        var directory = Utilities.BaseSettingsPath("HardwareMonitorExtension");
+        Directory.CreateDirectory(directory);
+        return Path.Combine(directory, "dock-appearance.json");
+    }
+
     public HardwareMonitorSettingsManager(SensorHub hub)
     {
         _hub = hub;

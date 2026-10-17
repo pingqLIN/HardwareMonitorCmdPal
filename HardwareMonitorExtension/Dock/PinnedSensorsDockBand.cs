@@ -16,20 +16,23 @@ namespace HardwareMonitorExtension.Dock;
 public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
 {
     private readonly SensorHub _hub;
+    private readonly DockItemAppearanceStore _appearances;
     private readonly IListItem _configureItem;
     private readonly Lock _updateLock = new();
     private readonly Dictionary<string, ListItem> _items = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
     private bool _hooked;
 
-    public PinnedSensorsDockBand(SensorHub hub, IListItem configureItem)
+    public PinnedSensorsDockBand(SensorHub hub, IListItem configureItem, DockItemAppearanceStore appearances)
         : base([], "hardwaremonitor.pinned_band", Text.Get("DockTitle"))
     {
         _hub = hub;
+        _appearances = appearances;
         _configureItem = configureItem;
         Icon = new IconInfo("🌡");
         EnsureHubHook();
         _hub.Pinned.Changed += OnPinsChanged;
+        _appearances.Changed += OnAppearanceChanged;
         RebuildItems();
     }
 
@@ -41,6 +44,8 @@ public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
     }
 
     private void OnPinsChanged(object? sender, EventArgs e) => RebuildItems();
+
+    private void OnAppearanceChanged(object? sender, EventArgs e) => RebuildItems();
 
     private void OnSnapshotUpdated(object? sender, EventArgs e) => ApplyFromSnapshot(_hub.Snapshot);
 
@@ -55,7 +60,17 @@ public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
             {
                 if (!_items.TryGetValue(id, out var item))
                 {
-                    item = new ListItem(new SensorChartPage(_hub, id));
+                    item = new ListItem(new SensorChartPage(_hub, id))
+                    {
+                        MoreCommands =
+                        [
+                            new CommandContextItem(new DockAppearancePage(_appearances, id))
+                            {
+                                Title = Text.Get("DockAppearanceEdit"),
+                                Icon = new IconInfo("🎨"),
+                            },
+                        ],
+                    };
                     _items[id] = item;
                 }
 
@@ -85,18 +100,25 @@ public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
     private void ApplyItem(ListItem item, string id, SensorSnapshot snap)
     {
         var sensor = snap.Find(id);
+        var appearance = _appearances.Get(id);
         if (sensor is null)
         {
-            item.Title = "--";
-            item.Subtitle = Text.Get("NoData");
-            item.Icon = new IconInfo("🌡");
+            item.Title = string.IsNullOrEmpty(appearance.Title) ? $"{id} --" : $"{appearance.Title} --";
+            item.Subtitle = string.IsNullOrEmpty(appearance.Subtitle) ? Text.Get("NoData") : appearance.Subtitle;
+            item.Icon = string.IsNullOrEmpty(appearance.Icon) ? new IconInfo("🌡") : new IconInfo(appearance.Icon);
             return;
         }
 
-        // 数值在 Title（短、右对齐友好）；名称在 Subtitle（Dock Compact 会隐藏）
-        item.Title = sensor.FormatDockTitle(_hub.MergeLoadInDock);
-        item.Subtitle = $"{Text.DisplayLabel(sensor.ShortLabel)} · {Text.DisplayName(sensor.Name)}";
-        item.Icon = IconFor(sensor);
+        // Compact hides Subtitle: identify each reading in the primary label.
+        // Custom title labels precede (and never replace) the current numeric value.
+        var value = sensor.FormatDockTitle(_hub.MergeLoadInDock);
+        item.Title = string.IsNullOrEmpty(appearance.Title)
+            ? sensor.FormatDockCompactTitle(_hub.MergeLoadInDock)
+            : $"{appearance.Title} {value}";
+        item.Subtitle = string.IsNullOrEmpty(appearance.Subtitle)
+            ? $"{Text.DisplayLabel(sensor.ShortLabel)} · {Text.DisplayName(sensor.Name)}"
+            : appearance.Subtitle;
+        item.Icon = string.IsNullOrEmpty(appearance.Icon) ? IconFor(sensor) : new IconInfo(appearance.Icon);
     }
 
     private static IconInfo IconFor(SensorReading sensor)
@@ -120,6 +142,7 @@ public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
             _disposed = true;
             _hub.Pinned.Changed -= OnPinsChanged;
             _hub.SnapshotUpdated -= OnSnapshotUpdated;
+            _appearances.Changed -= OnAppearanceChanged;
         }
     }
 }

@@ -12,6 +12,7 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
 {
     internal const string PageId = "hardwaremonitor.dock_settings";
     private readonly SensorHub _hub;
+    private readonly DockItemAppearanceStore _appearances;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, (ListItem Item, SetDockPinCommand Toggle)> _items = new(StringComparer.OrdinalIgnoreCase);
     private readonly ListItem _empty;
@@ -19,9 +20,10 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
     private string[] _sensorIds = [];
     private bool _disposed;
 
-    public DockSettingsPage(SensorHub hub)
+    public DockSettingsPage(SensorHub hub, DockItemAppearanceStore appearances)
     {
         _hub = hub;
+        _appearances = appearances;
         Id = PageId;
         Title = Text.Get("DockSettingsTitle");
         Name = Text.Get("DockSettingsOpen");
@@ -35,6 +37,7 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
         _clearPins = new ClearDockPinsCommand(_hub);
         _hub.SnapshotUpdated += OnSnapshotUpdated;
         _hub.Pinned.Changed += OnPinsChanged;
+        _appearances.Changed += OnAppearanceChanged;
     }
 
     public override IListItem[] GetItems()
@@ -57,7 +60,15 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
                     var toggle = new SetDockPinCommand(_hub, id);
                     var item = new ListItem(toggle)
                     {
-                        MoreCommands = [new CommandContextItem(_clearPins)],
+                        MoreCommands =
+                        [
+                            new CommandContextItem(new DockAppearancePage(_appearances, id))
+                            {
+                                Title = Text.Get("DockAppearanceEdit"),
+                                Icon = new IconInfo("🎨"),
+                            },
+                            new CommandContextItem(_clearPins),
+                        ],
                     };
                     entry = (item, toggle);
                     _items.Add(id, entry);
@@ -95,6 +106,8 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
 
     private void OnPinsChanged(object? sender, EventArgs e) => Refresh();
 
+    private void OnAppearanceChanged(object? sender, EventArgs e) => Refresh();
+
     private void Refresh()
     {
         bool changed;
@@ -120,6 +133,7 @@ internal sealed partial class DockSettingsPage : ListPage, IDisposable
             _disposed = true;
             _hub.SnapshotUpdated -= OnSnapshotUpdated;
             _hub.Pinned.Changed -= OnPinsChanged;
+            _appearances.Changed -= OnAppearanceChanged;
         }
     }
 }
