@@ -33,6 +33,7 @@ Use Windows, .NET 10 SDK, Windows SDK 10.0.26100 and Visual Studio with Windows/
 dotnet build HardwareMonitorExtension.sln -c Debug -p:Platform=x64
 dotnet run --project tests/LocalizationSmoke -p:Platform=x64
 node tests/dashboard-localization.test.cjs
+node tests/dashboard-polling.test.cjs
 powershell -NoProfile -File scripts/Export-DashboardLocales.ps1 -Check
 ```
 

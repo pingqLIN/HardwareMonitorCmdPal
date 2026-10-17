@@ -46,8 +46,11 @@
     sensors: demoSensors(),
     live: false,
     lastLiveTs: 0,
+    lastLiveStamp: null,
+    liveScriptPending: false,
     selected: null,
     pinned: ["cpu-pkg", "cpu-load", "cpu-ppt", "gpu-core", "ssd-temp", "mem-load"],
+    pinsCustomized: false,
     compact: false,
     paused: false,
     stress: false,
@@ -117,29 +120,35 @@
     }
 
     state.sensors = next;
+    // Reading the same cached snapshot does not make it fresh again.
+    const stamp = typeof live.timestamp === "string" ? live.timestamp : null;
+    if (!state.live || stamp !== state.lastLiveStamp) {
+      state.lastLiveTs = Date.now();
+      state.lastLiveStamp = stamp;
+    }
     state.live = true;
-    state.lastLiveTs = Date.now();
     state.last = live.timestamp ? new Date(live.timestamp) : new Date();
     if (!state.sensors.some((s) => s.id === state.selected))
       state.selected = state.sensors[0]?.id || null;
-    if (state.pinned.length === 0)
+    if (state.pinned.length === 0 && !state.pinsCustomized)
       state.pinned = state.sensors.filter((s) => s.kind === "temperature").slice(0, 6).map((s) => s.id);
     return true;
   }
 
   function reloadLive() {
-    if (state.paused) return;
+    if (state.paused || state.liveScriptPending) return;
+    state.liveScriptPending = true;
     const tag = document.createElement("script");
     tag.src = "live-data.js?t=" + Date.now();
-    tag.onload = () => {
-      if (applyLive()) render();
-      // 若扩展停止写入超过 8s，标记为过期但仍显示最后快照
-      if (state.live && Date.now() - state.lastLiveTs > 8000) {
-        $("metaLine").textContent = t("LiveStopped",
-          state.last ? state.last.toLocaleTimeString(L.locale, { hour12: false }) : "—");
-      }
+    const complete = () => {
+      state.liveScriptPending = false;
+      tag.remove(); // Long-lived dashboards must not accumulate script elements.
     };
-    tag.onerror = () => { /* 无真实文件，继续演示 */ };
+    tag.onload = () => {
+      complete();
+      if (applyLive()) render();
+    };
+    tag.onerror = complete;
     document.head.appendChild(tag);
   }
 
@@ -373,11 +382,16 @@
     const mode = t(state.live ? "LiveMode" : "DemoMode");
     $("metaLine").textContent = (state.last ? t("UpdatedAt", state.last.toLocaleTimeString(L.locale, { hour12: false })) : "") +
       t("WebMeta", state.sensors.length, mode, state.paused ? t("PausedSuffix") : "");
+    if (state.live && Date.now() - state.lastLiveTs > 8000) {
+      $("metaLine").textContent = t("LiveStopped",
+        state.last ? state.last.toLocaleTimeString(L.locale, { hour12: false }) : "—");
+    }
     $("listCount").textContent = String(state.sensors.length);
     $("dockMode").textContent = t(state.compact ? "Compact" : "Default");
 
     const pinIds = state.pinned.filter((id) => state.sensors.some((s) => s.id === id));
-    if (pinIds.length === 0) pinIds.push(...state.sensors.filter((s) => s.kind === "temperature").slice(0, 6).map((s) => s.id));
+    if (pinIds.length === 0 && !state.pinsCustomized)
+      pinIds.push(...state.sensors.filter((s) => s.kind === "temperature").slice(0, 6).map((s) => s.id));
     state.pinned = pinIds;
 
     $("dock").innerHTML = state.pinned
@@ -494,6 +508,7 @@
       state.pinned = state.pinned.includes(id)
         ? state.pinned.filter((x) => x !== id)
         : [...state.pinned, id];
+      state.pinsCustomized = true; // Empty is a deliberate dashboard-local selection.
       render();
       return;
     }
@@ -504,6 +519,7 @@
 
   // 启动：先试 live，再演示 seed
   if (applyLive()) {
+    render();
     restart();
   } else {
     for (let i = 0; i < 45; i++) sampleDemo();

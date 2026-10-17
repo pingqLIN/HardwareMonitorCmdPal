@@ -33,6 +33,7 @@ CPU 溫度是否可讀，取決於硬體、驅動程式與權限。現有的「*
 dotnet build HardwareMonitorExtension.sln -c Debug -p:Platform=x64
 dotnet run --project tests/LocalizationSmoke -p:Platform=x64
 node tests/dashboard-localization.test.cjs
+node tests/dashboard-polling.test.cjs
 powershell -NoProfile -File scripts/Export-DashboardLocales.ps1 -Check
 ```
 
