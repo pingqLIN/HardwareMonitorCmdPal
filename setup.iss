@@ -4,7 +4,7 @@
 #ifndef Platform
   #define Platform "x64"
 #endif
-#define AppVersion "0.1.7.0"
+#define AppVersion "0.1.7.2"
 #define ExtensionName "HardwareMonitorExtension"
 #define DisplayName "Hardware Monitor (PawnIO)"
 #define DeveloperName "zhang-astronaut"
