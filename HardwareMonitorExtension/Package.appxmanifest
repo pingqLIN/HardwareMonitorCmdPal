@@ -11,7 +11,7 @@
   <Identity
     Name="HardwareMonitorExtension"
     Publisher="CN=HardwareMonitor"
-    Version="0.1.7.0" />
+    Version="0.1.7.1" />
 
   <Properties>
     <DisplayName>Hardware Monitor (PawnIO)</DisplayName>
