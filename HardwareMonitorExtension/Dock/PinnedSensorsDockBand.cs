@@ -2,6 +2,7 @@
 
 using HardwareMonitorExtension.Pages;
 using HardwareMonitorExtension.Services;
+using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace HardwareMonitorExtension.Dock;
@@ -14,18 +15,20 @@ namespace HardwareMonitorExtension.Dock;
 public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
 {
     private readonly SensorHub _hub;
+    private readonly IListItem _configureItem;
     private readonly Lock _updateLock = new();
     private readonly Dictionary<string, ListItem> _items = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
     private bool _hooked;
 
-    public PinnedSensorsDockBand(SensorHub hub)
+    public PinnedSensorsDockBand(SensorHub hub, IListItem configureItem)
         : base([], "hardwaremonitor.pinned_band", "硬件读数")
     {
         _hub = hub;
+        _configureItem = configureItem;
         Icon = new IconInfo("🌡");
         EnsureHubHook();
-        _hub.Pinned.Changed += (_, _) => RebuildItems();
+        _hub.Pinned.Changed += OnPinsChanged;
         RebuildItems();
     }
 
@@ -33,8 +36,12 @@ public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
     {
         if (_hooked) return;
         _hooked = true;
-        _hub.SnapshotUpdated += (_, _) => ApplyFromSnapshot(_hub.Snapshot);
+        _hub.SnapshotUpdated += OnSnapshotUpdated;
     }
+
+    private void OnPinsChanged(object? sender, EventArgs e) => RebuildItems();
+
+    private void OnSnapshotUpdated(object? sender, EventArgs e) => ApplyFromSnapshot(_hub.Snapshot);
 
     private void RebuildItems()
     {
@@ -59,7 +66,8 @@ public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
             foreach (var key in _items.Keys.Where(k => !keep.Contains(k)).ToList())
                 _items.Remove(key);
 
-            Items = [.. list];
+            // Keep configuration reachable even after the last reading is hidden.
+            Items = [.. list, _configureItem];
         }
     }
 
@@ -109,6 +117,8 @@ public sealed partial class PinnedSensorsDockBand : WrappedDockItem, IDisposable
         {
             if (_disposed) return;
             _disposed = true;
+            _hub.Pinned.Changed -= OnPinsChanged;
+            _hub.SnapshotUpdated -= OnSnapshotUpdated;
         }
     }
 }

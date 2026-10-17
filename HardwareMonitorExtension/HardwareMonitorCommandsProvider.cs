@@ -1,6 +1,7 @@
 // Copyright (c) HardwareMonitor. MIT license.
 
 using HardwareMonitorExtension.Dock;
+using HardwareMonitorExtension.Localization;
 using HardwareMonitorExtension.Pages;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
@@ -15,6 +16,7 @@ public partial class HardwareMonitorCommandsProvider : CommandProvider
     private readonly SensorHub _hub = new();
     private readonly HardwareMonitorSettingsManager _settingsManager;
     private readonly PinnedSensorsDockBand _dockBand;
+    private readonly DockSettingsPage _dockSettingsPage;
     private readonly ICommandItem[] _commands;
     private readonly ICommandItem[] _bands;
 
@@ -24,11 +26,24 @@ public partial class HardwareMonitorCommandsProvider : CommandProvider
         Icon = IconHelpers.FromRelativePath("Assets\\StoreLogo.png");
         _settingsManager = new HardwareMonitorSettingsManager(_hub);
         _hub.ConfigurePins(HardwareMonitorSettingsManager.PinsJsonPath());
-        _dockBand = new PinnedSensorsDockBand(_hub);
+        _dockSettingsPage = new DockSettingsPage(_hub);
+        var configureDockItem = new ListItem(_dockSettingsPage)
+        {
+            Title = Text.Get("DockSettingsTitle"),
+            Subtitle = Text.Get("DockSettingsDescription"),
+            Icon = new IconInfo("⚙"),
+        };
+        _dockBand = new PinnedSensorsDockBand(_hub, configureDockItem);
 
         var listPage = new SensorsListPage(_hub, _settingsManager);
         _commands =
         [
+            new CommandItem(_dockSettingsPage)
+            {
+                Title = Text.Get("DockSettingsTitle"),
+                Subtitle = Text.Get("DockSettingsDescription"),
+                Icon = new IconInfo("⚙"),
+            },
             new CommandItem(listPage)
             {
                 Title = DisplayName,
@@ -57,7 +72,12 @@ public partial class HardwareMonitorCommandsProvider : CommandProvider
             },
         ];
 
-        _bands = [_dockBand];
+        // Wrap the page as a single button: a bare IListPage would expand every sensor in the Dock.
+        _bands = [_dockBand, new WrappedDockItem([configureDockItem],
+            "hardwaremonitor.dock_settings_band", Text.Get("DockSettingsTitle"))
+        {
+            Icon = new IconInfo("⚙"),
+        }];
 
         Settings = _settingsManager.Settings;
         _ = _hub.StartAsync();
@@ -70,6 +90,7 @@ public partial class HardwareMonitorCommandsProvider : CommandProvider
     public override void Dispose()
     {
         _dockBand.Dispose();
+        _dockSettingsPage.Dispose();
         _hub.Dispose();
         GC.SuppressFinalize(this);
         base.Dispose();
